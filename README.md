@@ -2,7 +2,7 @@
 title: KolonMall Banner Guard
 emoji: 🏢
 colorFrom: gray
-colorTo: black
+colorTo: blue
 sdk: docker
 app_port: 7860
 pinned: false
