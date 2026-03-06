@@ -273,3 +273,11 @@ async def stream_results():
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/")
+async def root():
+    return {
+        "message": "KolonMall Banner Integrity Guard API is running",
+        "docs": "API documentation is available at /docs"
+    }
