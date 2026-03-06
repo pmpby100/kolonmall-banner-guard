@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KolonMall Banner Integrity Guard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0a0a;
+      --surface:   #111111;
+      --surface2:  #1a1a1a;
+      --border:    #2a2a2a;
+      --text:      #f0f0f0;
+      --muted:     #666666;
+      --accent:    #ffffff;
+      --success:   #16a34a;
+      --success-bg:#052e16;
+      --error:     #dc2626;
+      --error-bg:  #450a0a;
+      --warn:      #d97706;
+      --warn-bg:   #451a03;
+      --progress:  #ffffff;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 20px 40px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .logo-mark {
+      width: 36px; height: 36px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .logo-mark svg { color: var(--bg); }
+    header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+    header span { color: var(--muted); font-size: 12px; margin-left: auto; }
+
+    /* ── Main Layout ── */
+    main { max-width: 1280px; margin: 0 auto; padding: 40px; }
+
+    /* ── Stat Cards ── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      transition: border-color .2s;
+    }
+    .stat-card:hover { border-color: #444; }
+    .stat-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .stat-value {
+      font-size: 36px;
+      font-weight: 700;
+      letter-spacing: -1px;
+      line-height: 1;
+    }
+    .stat-card.success .stat-value { color: #4ade80; }
+    .stat-card.error   .stat-value { color: #f87171; }
+    .stat-card.warn    .stat-value { color: #fbbf24; }
+
+    /* ── Control Panel ── */
+    .control-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+      margin-bottom: 32px;
+    }
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    #scan-btn {
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: 8px;
+      padding: 12px 28px;
+      font-size: 14px;
+      font-weight: 700;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      transition: opacity .2s, transform .1s;
+      white-space: nowrap;
+    }
+    #scan-btn:hover:not(:disabled) { opacity: .85; transform: translateY(-1px); }
+    #scan-btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+    .status-text {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .status-text strong { color: var(--text); }
+
+    /* Progress Bar */
+    .progress-wrap {
+      margin-top: 20px;
+    }
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .progress-track {
+      background: var(--border);
+      border-radius: 999px;
+      height: 6px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 999px;
+      width: 0%;
+      transition: width .3s ease;
+    }
+
+    /* ── Results Grid ── */
+    .results-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .results-header h2 {
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .filter-tabs {
+      display: flex;
+      gap: 6px;
+    }
+    .filter-tab {
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      font-family: 'Inter', sans-serif;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .filter-tab.active, .filter-tab:hover {
+      background: var(--surface2);
+      color: var(--text);
+      border-color: #555;
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+
+    /* Banner Card */
+    .banner-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: border-color .2s, transform .15s;
+      animation: fadeUp .3s ease both;
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .banner-card:hover { border-color: #444; transform: translateY(-2px); }
+    .banner-card.critical { border-color: var(--error); }
+    .banner-card.warn-card { border-color: var(--warn); }
+
+    .banner-thumb {
+      width: 100%;
+      aspect-ratio: 16/7;
+      object-fit: cover;
+      display: block;
+      background: var(--surface2);
+    }
+    .thumb-placeholder {
+      width: 100%;
+      aspect-ratio: 16/7;
+      background: var(--surface2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 28px;
+    }
+
+    .banner-body { padding: 16px; }
+    .banner-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .type-badge {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: var(--surface2);
+      color: var(--muted);
+    }
+    .status-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      padding: 3px 9px;
+      border-radius: 4px;
+      margin-left: auto;
+    }
+    .status-badge.success { background: var(--success-bg); color: #4ade80; }
+    .status-badge.critical { background: var(--error-bg); color: #f87171; }
+    .status-badge.error-badge { background: var(--warn-bg); color: #fbbf24; }
+    .status-badge.pending { background: var(--surface2); color: var(--muted); }
+
+    .banner-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      margin-bottom: 6px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .banner-url {
+      font-size: 11px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 12px;
+    }
+    .banner-err {
+      font-size: 11px;
+      color: #f87171;
+      background: var(--error-bg);
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-bottom: 10px;
+      line-height: 1.4;
+    }
+    .banner-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .btn-visit {
+      flex: 1;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 500;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: all .15s;
+      text-decoration: none;
+      text-align: center;
+    }
+    .btn-visit:hover { background: var(--surface2); border-color: #555; }
+
+    /* Empty / Loading states */
+    .empty-state {
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--muted);
+      grid-column: 1 / -1;
+    }
+    .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
+    .empty-state p { font-size: 14px; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      main { padding: 20px; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      header { padding: 16px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark">
+    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+      <path stroke-linecap="round" stroke-linejoin="round"
+        d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  </div>
+  <h1>KolonMall Banner Integrity Guard</h1>
+  <span>kolonmall.com 배너 링크 전수 검수 시스템</span>
+</header>
+
+<main>
+
+  <!-- ── Stats ── -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">전체 배너</div>
+      <div class="stat-value" id="stat-total">—</div>
+    </div>
+    <div class="stat-card success">
+      <div class="stat-label">정상</div>
+      <div class="stat-value" id="stat-ok">—</div>
+    </div>
+    <div class="stat-card error">
+      <div class="stat-label">Critical Error</div>
+      <div class="stat-value" id="stat-critical">—</div>
+    </div>
+    <div class="stat-card warn">
+      <div class="stat-label">에러</div>
+      <div class="stat-value" id="stat-err">—</div>
+    </div>
+  </div>
+
+  <!-- ── Control Panel ── -->
+  <div class="control-panel">
+    <div class="control-row">
+      <button id="scan-btn" onclick="startScan()">▶ 검수 시작</button>
+      <div class="status-text" id="status-text">검수 시작 버튼을 눌러 배너 링크 전수 검사를 시작하세요.</div>
+    </div>
+    <div class="progress-wrap" id="progress-wrap" style="display:none">
+      <div class="progress-header">
+        <span id="prog-label">배너 추출 중...</span>
+        <span id="prog-count">0 / 0</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Results ── -->
+  <div class="results-header">
+    <h2>검수 결과</h2>
+    <div class="filter-tabs">
+      <button class="filter-tab active" onclick="setFilter('all', this)">전체</button>
+      <button class="filter-tab" onclick="setFilter('SUCCESS', this)">정상</button>
+      <button class="filter-tab" onclick="setFilter('CRITICAL_ERROR', this)">Critical</button>
+      <button class="filter-tab" onclick="setFilter('ERROR', this)">에러</button>
+    </div>
+  </div>
+  <div class="results-grid" id="results-grid">
+    <div class="empty-state">
+      <div class="icon">🔍</div>
+      <p>검수를 시작하면 결과가 여기에 표시됩니다.</p>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  const API = 'http://localhost:8000';
+  let allResults = [];
+  let currentFilter = 'all';
+  let totalBanners = 0;
+  let completedCount = 0;
+  let es = null;
+
+  function setFilter(filter, btn) {
+    currentFilter = filter;
+    document.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderGrid();
+  }
+
+  function updateStats() {
+    const ok  = allResults.filter(r => r.status === 'SUCCESS').length;
+    const crit= allResults.filter(r => r.status === 'CRITICAL_ERROR').length;
+    const err = allResults.filter(r => r.status === 'ERROR').length;
+    document.getElementById('stat-total').textContent   = totalBanners || '—';
+    document.getElementById('stat-ok').textContent      = ok  || '—';
+    document.getElementById('stat-critical').textContent= crit || '—';
+    document.getElementById('stat-err').textContent     = err  || '—';
+  }
+
+  function renderGrid() {
+    const grid = document.getElementById('results-grid');
+    const filtered = currentFilter === 'all'
+      ? allResults
+      : allResults.filter(r => r.status === currentFilter);
+
+    if (filtered.length === 0) {
+      grid.innerHTML = `<div class="empty-state">
+        <div class="icon">🔍</div>
+        <p>${allResults.length === 0 ? '검수를 시작하면 결과가 여기에 표시됩니다.' : '해당 조건의 결과가 없습니다.'}</p>
+      </div>`;
+      return;
+    }
+
+    grid.innerHTML = filtered.map((b, i) => {
+      const statusClass = b.status === 'SUCCESS' ? 'success'
+                        : b.status === 'CRITICAL_ERROR' ? 'critical'
+                        : b.status === 'PENDING' ? 'pending'
+                        : 'error-badge';
+      const statusLabel = b.status === 'SUCCESS' ? 'SUCCESS'
+                        : b.status === 'CRITICAL_ERROR' ? '⚠ CRITICAL ERROR'
+                        : b.status === 'PENDING' ? '대기 중'
+                        : 'ERROR';
+      const cardClass = b.status === 'CRITICAL_ERROR' ? 'banner-card critical'
+                      : b.status === 'ERROR' ? 'banner-card warn-card'
+                      : 'banner-card';
+      const thumb = b.image_url
+        ? `<img class="banner-thumb" src="${escHtml(b.image_url)}" alt="${escHtml(b.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" loading="lazy" />
+           <div class="thumb-placeholder" style="display:none">🖼️</div>`
+        : `<div class="thumb-placeholder">🖼️</div>`;
+      const errBlock = (b.error_message && b.status !== 'SUCCESS')
+        ? `<div class="banner-err">${escHtml(b.error_message)}</div>` : '';
+      return `<div class="${cardClass}" style="animation-delay:${i * 0.03}s">
+        ${thumb}
+        <div class="banner-body">
+          <div class="banner-meta">
+            <span class="type-badge">${b.type === 'carousel' ? '캐러셀' : '서브'}</span>
+            <span class="status-badge ${statusClass}">${statusLabel}</span>
+          </div>
+          <div class="banner-name" title="${escHtml(b.name)}">${escHtml(b.name) || '(이름 없음)'}</div>
+          <div class="banner-url" title="${escHtml(b.landing_url)}">${escHtml(b.landing_url)}</div>
+          ${errBlock}
+          <div class="banner-actions">
+            <a class="btn-visit" href="${escHtml(b.landing_url)}" target="_blank" rel="noopener">↗ URL 방문</a>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function escHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function setProgress(done, total, label) {
+    const wrap = document.getElementById('progress-wrap');
+    wrap.style.display = 'block';
+    const pct = total > 0 ? Math.round(done / total * 100) : 0;
+    document.getElementById('progress-fill').style.width = pct + '%';
+    document.getElementById('prog-count').textContent = `${done} / ${total}`;
+    document.getElementById('prog-label').textContent = label || `검수 중... (${pct}%)`;
+  }
+
+  async function startScan() {
+    // Close any existing SSE
+    if (es) { es.close(); es = null; }
+
+    // Reset state
+    allResults = [];
+    totalBanners = 0;
+    completedCount = 0;
+    updateStats();
+    renderGrid();
+
+    const btn = document.getElementById('scan-btn');
+    btn.disabled = true;
+    btn.textContent = '⏳ 검수 중...';
+    document.getElementById('status-text').innerHTML = '백엔드에 연결 중...';
+    document.getElementById('progress-wrap').style.display = 'block';
+    setProgress(0, 0, '배너 추출 준비 중...');
+
+    // Start scan on backend
+    try {
+      const resp = await fetch(`${API}/api/scan`, { method: 'POST' });
+      const json = await resp.json();
+      if (json.status === 'already_running') {
+        document.getElementById('status-text').innerHTML = '<strong>이미 검수가 진행 중입니다.</strong>';
+        btn.disabled = false;
+        btn.textContent = '▶ 검수 시작';
+        return;
+      }
+    } catch (e) {
+      document.getElementById('status-text').innerHTML =
+        `<strong style="color:#f87171">백엔드 연결 실패:</strong> ${API} 에 연결할 수 없습니다. uvicorn을 실행했는지 확인하세요.`;
+      btn.disabled = false;
+      btn.textContent = '▶ 검수 시작';
+      return;
+    }
+
+    // Open SSE stream
+    es = new EventSource(`${API}/api/stream`);
+
+    es.onmessage = (event) => {
+      let data;
+      try { data = JSON.parse(event.data); } catch { return; }
+
+      if (data.event === 'extracting') {
+        setProgress(0, 0, '배너 추출 중...');
+        document.getElementById('status-text').textContent = '메인 페이지에서 배너를 추출하고 있습니다...';
+      }
+      else if (data.event === 'extracted') {
+        totalBanners = data.total;
+        allResults = data.banners;
+        updateStats();
+        renderGrid();
+        setProgress(0, totalBanners, `배너 ${totalBanners}개 추출 완료 — 링크 검수 시작`);
+        document.getElementById('status-text').innerHTML =
+          `<strong>${totalBanners}개</strong> 배너를 추출했습니다. 링크 검수를 시작합니다...`;
+      }
+      else if (data.event === 'result') {
+        completedCount = data.completed;
+        // Update the specific banner in allResults
+        const idx = allResults.findIndex(b => b.index === data.banner.index && b.landing_url === data.banner.landing_url);
+        if (idx !== -1) allResults[idx] = data.banner;
+        else allResults.push(data.banner);
+        updateStats();
+        renderGrid();
+        setProgress(completedCount, data.total, `링크 검수 중... (${completedCount}/${data.total})`);
+      }
+      else if (data.event === 'done') {
+        setProgress(data.total, data.total, '✅ 검수 완료');
+        const ok   = allResults.filter(r => r.status === 'SUCCESS').length;
+        const crit = allResults.filter(r => r.status === 'CRITICAL_ERROR').length;
+        const err  = allResults.filter(r => r.status === 'ERROR').length;
+        document.getElementById('status-text').innerHTML =
+          `검수 완료 — 정상 <strong style="color:#4ade80">${ok}</strong> / Critical <strong style="color:#f87171">${crit}</strong> / 에러 <strong style="color:#fbbf24">${err}</strong>`;
+        btn.disabled = false;
+        btn.textContent = '▶ 재검수';
+        es.close(); es = null;
+      }
+      else if (data.event === 'error') {
+        document.getElementById('status-text').innerHTML =
+          `<strong style="color:#f87171">오류 발생:</strong> ${data.message}`;
+        btn.disabled = false;
+        btn.textContent = '▶ 검수 시작';
+        es.close(); es = null;
+      }
+    };
+
+    es.onerror = () => {
+      // SSE disconnected — scan may have finished
+      if (completedCount >= totalBanners && totalBanners > 0) return;
+      document.getElementById('status-text').innerHTML =
+        `<strong style="color:#fbbf24">SSE 연결이 끊어졌습니다.</strong> 백엔드 상태를 확인하세요.`;
+      btn.disabled = false;
+      btn.textContent = '▶ 재시도';
+      if (es) { es.close(); es = null; }
+    };
+  }
+</script>
+</body>
+</html>
