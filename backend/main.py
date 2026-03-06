@@ -34,6 +34,7 @@ CONCURRENCY = 5
 # Global state for SSE streaming
 scan_queue: asyncio.Queue = asyncio.Queue()
 scan_running = False
+scan_cancelled = False
 
 
 async def extract_banners(page) -> list[dict]:
@@ -157,9 +158,17 @@ async def extract_banners(page) -> list[dict]:
 
 async def check_banner(semaphore: asyncio.Semaphore, browser, banner: dict, total: int) -> dict:
     """Check a single banner for dead-link (popup detection)."""
+    global scan_cancelled
+    
     async with semaphore:
         result = banner.copy()
         page = None
+        
+        # Immediate abort check
+        if scan_cancelled:
+            result["status"] = "CANCELLED"
+            result["error_message"] = "검수가 사용자에 의해 중단되었습니다."
+            return result
         try:
             page = await browser.new_page()
             # Block images/fonts to speed up
@@ -265,24 +274,43 @@ async def run_scan(queue: asyncio.Queue):
                 "total": total,
                 "banner": result,
             }))
+            # Stop scheduling queue updates if cancelled mid-way (but let current tasks finish fast)
+            if scan_cancelled and completed < total:
+                # Optionally send a cancellation event, but setting 'done' is usually cleaner
+                pass
 
         await browser.close()
 
-    await queue.put(json.dumps({"event": "done", "total": total}))
+    # Final event
+    final_event = "cancelled" if scan_cancelled else "done"
+    await queue.put(json.dumps({"event": final_event, "total": total, "completed": completed}))
     await queue.put(None)  # sentinel
     scan_running = False
+    scan_cancelled = False
 
 
 @app.post("/api/scan")
 async def start_scan():
     """Start or restart a scan. Returns immediately."""
-    global scan_queue, scan_running
+    global scan_queue, scan_running, scan_cancelled
     if scan_running:
         return {"status": "already_running"}
     # Reset queue
     scan_queue = asyncio.Queue()
+    scan_cancelled = False
     asyncio.create_task(run_scan(scan_queue))
     return {"status": "started"}
+
+
+@app.post("/api/cancel")
+async def cancel_scan():
+    """Cancel a running scan."""
+    global scan_running, scan_cancelled
+    if not scan_running:
+        return {"status": "not_running"}
+    
+    scan_cancelled = True
+    return {"status": "cancelling"}
 
 
 @app.get("/api/stream")
