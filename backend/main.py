@@ -49,9 +49,34 @@ async def extract_banners(page) -> list[dict]:
     # Wait a bit for JS to render
     await page.wait_for_timeout(3000)
 
+    # Force all lazy-loaded carousel banners to appear by triggering swiper swipes
+    # KolonMall main Swiper usually has a next button or we can simulate swipe
+    try:
+        # Evaluate JS to manipulate the Swiper instance or just scroll sideways
+        # A simpler way is to find the swiper-wrapper and scroll it horizontally
+        await page.evaluate('''() => {
+            const swiper = document.querySelector('.swiper-wrapper');
+            if (swiper) {
+                // Scroll horizontally in steps to trigger lazy loading
+                let scrolled = 0;
+                let scrollStep = window.innerWidth;
+                const timer = setInterval(() => {
+                    swiper.scrollBy(scrollStep, 0);
+                    scrolled += scrollStep;
+                    if (scrolled > window.innerWidth * 30) {
+                        clearInterval(timer);
+                    }
+                }, 100);
+            }
+        }''')
+        await page.wait_for_timeout(3000) # give it time to load all 30 slides
+    except Exception as e:
+        print(f"[WARN] Failed to trigger swiper scroll: {e}")
+
     # ─── 1. Carousel (Main) banners ───────────────────────────────────────────
     try:
-        slides = await page.query_selector_all(".swiper-wrapper .swiper-slide")
+        # KolonMall uses duplicated slides for infinite loop, we should filter them (swiper-slide-duplicate)
+        slides = await page.query_selector_all(".swiper-wrapper .swiper-slide:not(.swiper-slide-duplicate)")
         seen_urls = set()
         for idx, slide in enumerate(slides):
             a_tag = await slide.query_selector("a")
@@ -195,8 +220,11 @@ async def run_scan(queue: asyncio.Queue):
     scan_running = True
 
     async with async_playwright() as p:
+        # Use mobile emulation to ensure mobile-only sub-banners are visible
+        iphone_13 = p.devices['iPhone 13']
         browser = await p.chromium.launch(headless=True)
-        extract_page = await browser.new_page()
+        context = await browser.new_context(**iphone_13)
+        extract_page = await context.new_page()
 
         # Phase 1: Extract banners
         await queue.put(json.dumps({"event": "extracting", "message": "배너 추출 중..."}))
