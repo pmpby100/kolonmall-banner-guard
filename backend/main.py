@@ -29,7 +29,7 @@ TARGET_URL = "https://www.kolonmall.com/"
 POPUP_SELECTOR = "h2#swal2-title"
 POPUP_TEXT = "코오롱몰 메인으로 이동합니다."
 POPUP_TIMEOUT_MS = 3000
-CONCURRENCY = 5
+CONCURRENCY = 15
 
 # Global state for SSE streaming
 scan_queue: asyncio.Queue = asyncio.Queue()
@@ -38,45 +38,21 @@ scan_cancelled = False
 
 
 async def extract_banners(page) -> list[dict]:
-    """Extract all banners from the KolonMall main page."""
+    """Extract all banners from the KolonMall main page very quickly."""
     banners = []
 
     try:
-        await page.goto(TARGET_URL, wait_until="networkidle", timeout=30000)
+        await page.goto(TARGET_URL, wait_until="domcontentloaded", timeout=20000)
     except Exception:
-        # Fallback: wait for domcontentloaded
-        await page.goto(TARGET_URL, wait_until="domcontentloaded", timeout=30000)
+        pass  # Just need the DOM
 
-    # Wait a bit for JS to render
-    await page.wait_for_timeout(3000)
-
-    # Force all lazy-loaded carousel banners to appear by triggering swiper swipes
-    # KolonMall main Swiper usually has a next button or we can simulate swipe
-    try:
-        # Evaluate JS to manipulate the Swiper instance or just scroll sideways
-        # A simpler way is to find the swiper-wrapper and scroll it horizontally
-        await page.evaluate('''() => {
-            const swiper = document.querySelector('.swiper-wrapper');
-            if (swiper) {
-                // Scroll horizontally in steps to trigger lazy loading
-                let scrolled = 0;
-                let scrollStep = window.innerWidth;
-                const timer = setInterval(() => {
-                    swiper.scrollBy(scrollStep, 0);
-                    scrolled += scrollStep;
-                    if (scrolled > window.innerWidth * 30) {
-                        clearInterval(timer);
-                    }
-                }, 100);
-            }
-        }''')
-        await page.wait_for_timeout(3000) # give it time to load all 30 slides
-    except Exception as e:
-        print(f"[WARN] Failed to trigger swiper scroll: {e}")
-
+    # Force extraction of lazy-loaded images without scrolling/waiting
+    # KolonMall's lazy loading usually keeps original images in data attributes (like data-src) 
+    # or inside noscript tags before initialization, but mostly just requires finding all slides.
+    
     # ─── 1. Carousel (Main) banners ───────────────────────────────────────────
     try:
-        # KolonMall uses duplicated slides for infinite loop, we should filter them (swiper-slide-duplicate)
+        # Avoid duplicated slides used by Swiper for infinite loop
         slides = await page.query_selector_all(".swiper-wrapper .swiper-slide:not(.swiper-slide-duplicate)")
         seen_urls = set()
         for idx, slide in enumerate(slides):
@@ -95,13 +71,15 @@ async def extract_banners(page) -> list[dict]:
             # Get image src
             img = await slide.query_selector("img")
             image_url = ""
-            if img:
-                image_url = await img.get_attribute("src") or ""
-
-            # Alt text as banner name
             alt = ""
             if img:
+                image_url = await img.get_attribute("src") or ""
                 alt = await img.get_attribute("alt") or ""
+                # If src is a placeholder, try grabbing the highly-likely real image lazy-attribute
+                if "placeholder" in image_url or not image_url or "data:image" in image_url:
+                    lazy_src = await img.get_attribute("data-src")
+                    if lazy_src:
+                        image_url = lazy_src
 
             banners.append({
                 "index": len(banners),
@@ -171,8 +149,8 @@ async def check_banner(semaphore: asyncio.Semaphore, browser, banner: dict, tota
             return result
         try:
             page = await browser.new_page()
-            # Block images/fonts to speed up
-            await page.route("**/*.{png,jpg,jpeg,gif,webp,svg,woff,woff2,ttf}", lambda route: route.abort())
+            # Aggressively block heavy resources (images, fonts, css, tracking scripts)
+            await page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "font", "stylesheet", "media"] or "google-analytics" in route.request.url or "youtube" in route.request.url or "facebook" in route.request.url else route.continue_())
 
             try:
                 await page.goto(result["landing_url"], wait_until="domcontentloaded", timeout=20000)
@@ -229,10 +207,13 @@ async def run_scan(queue: asyncio.Queue):
     scan_running = True
 
     async with async_playwright() as p:
-        # Use mobile emulation to ensure mobile-only sub-banners are visible
-        iphone_13 = p.devices['iPhone 13']
+        # Instead of full heavy mobile emulation (`p.devices['iPhone 13']`),
+        # we just set a mobile viewport, which is much faster to load and tricks responsive CSS/JS.
         browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context(**iphone_13)
+        context = await browser.new_context(
+            viewport={'width': 375, 'height': 812},
+            user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1"
+        )
         extract_page = await context.new_page()
 
         # Phase 1: Extract banners
