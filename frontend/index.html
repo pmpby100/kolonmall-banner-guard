@@ -336,6 +336,10 @@
   </div>
   <h1>KolonMall Banner Integrity Guard</h1>
   <span>kolonmall.com 배너 링크 전수 검수 시스템</span>
+  <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+    <label for="api-url" style="font-size: 11px; color: var(--muted); font-weight: 600;">BACKEND API:</label>
+    <input type="text" id="api-url" value="http://localhost:8000" style="background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 12px; font-family: 'Inter', monospace; width: 220px;" placeholder="https://api.example.com" />
+  </div>
 </header>
 
 <main>
@@ -397,12 +401,15 @@
 </main>
 
 <script>
-  const API = 'http://localhost:8000';
   let allResults = [];
   let currentFilter = 'all';
   let totalBanners = 0;
   let completedCount = 0;
   let es = null;
+
+  function getApiUrl() {
+    return document.getElementById('api-url').value.replace(/\/$/, '');
+  }
 
   function setFilter(filter, btn) {
     currentFilter = filter;
@@ -503,6 +510,8 @@
     document.getElementById('progress-wrap').style.display = 'block';
     setProgress(0, 0, '배너 추출 준비 중...');
 
+    const API = getApiUrl();
+
     // Start scan on backend
     try {
       const resp = await fetch(`${API}/api/scan`, { method: 'POST' });
@@ -515,7 +524,7 @@
       }
     } catch (e) {
       document.getElementById('status-text').innerHTML =
-        `<strong style="color:#f87171">백엔드 연결 실패:</strong> ${API} 에 연결할 수 없습니다. uvicorn을 실행했는지 확인하세요.`;
+        `<strong style="color:#f87171">백엔드 연결 실패:</strong> ${API} 에 연결할 수 없습니다. (HTTPS/CORS 문제이거나 백엔드가 꺼져있을 수 있습니다)`;
       btn.disabled = false;
       btn.textContent = '▶ 검수 시작';
       return;
